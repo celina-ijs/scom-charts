@@ -1,53 +1,57 @@
-import { Module, customModule, Container, Button } from '@ijstech/components';
+import { Module, customModule, Container } from '@ijstech/components';
+import { ModeType } from '@scom/scom-chart-data-source-setup';
 import { ScomCharts } from '@scom/scom-charts';
 
 @customModule
 export default class Module1 extends Module {
-    private chart: ScomCharts;
-    private btnAction: Button;
+    private chart: ScomCharts<any>;
 
     constructor(parent?: Container, options?: any) {
         super(parent, options);
     }
 
-    private changeTheme() {
-        this.chart.theme = this.chart.theme === 'light' ? 'dark' : 'light';
-    }
-
     async init() {
         await super.init();
-        this.chart.data = {
-            xAxis: {
-                type: 'category',
-                data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-            },
-            yAxis: {
-                type: 'value'
-            },
-            series: [
-                {
-                    data: [22, 150, 175, 67, 52, 56, 220],
-                    type: 'line'
-                }
-            ]
-        }
     }
 
 
     render() {
         return (
             <i-vstack width="100%" height="100%">
-                <i-button
-                    caption='Change Theme'
-                    width={80}
-                    height={30}
-                    onClick={this.changeTheme}
-                ></i-button>
                 <i-scom-charts
                     id="chart"
-                    theme="dark"
                     width={1000}
                     height={500}
+                    data={{
+                        dataSource: 'Custom',
+                        mode: ModeType.LIVE,
+                        apiEndpoint: 'https://api.dune.com/api/v1/query/3865244/results?api_key=',
+                        title: 'MEV Blocks Trend by Builders',
+                        options: {
+                            xColumn: {
+                                key: 'block_date',
+                                type: 'time'
+                            },
+                            yColumns: [
+                                'mev_block_count',
+                            ],
+                            seriesOptions: [
+                                {
+                                    key: 'mev_block_count',
+                                    title: 'Blocks',
+                                    color: '#000'
+                                }
+                            ],
+                            xAxis: {
+                                title: 'Date',
+                                tickFormat: 'MMM DD'
+                            },
+                            yAxis: {
+                                labelFormat: '0,000.00',
+                                position: 'left'
+                            }
+                        }
+                    }}
                 ></i-scom-charts>
             </i-vstack>
         )
