@@ -14,11 +14,12 @@ import {
     IUISchema,
     Modal
 } from '@ijstech/components';
-import { Charts, ScomChartsDataForm } from './components/index';
+import { Charts, ScomChartBlock, ScomChartsDataForm } from './components/index';
 import { chartStyle, containerStyle, textStyle } from './index.css';
 import assets from './assets';
 import ScomChartDataSourceSetup, { ModeType, fetchContentByCID, callAPI, DataSource } from '@scom/scom-chart-data-source-setup';
 import { IChartConfig, ThemeType } from './interface';
+import { ChartTypes, getWidgetEmbedUrl, parseUrl } from './utils';
 
 const Theme = Styles.Theme.ThemeVars;
 
@@ -48,9 +49,14 @@ const DefaultData: IChartConfig<any> = {
     mode: ModeType.LIVE
 };
 
+type executeFnType = (editor: any, block: any) => void;
+interface BlockSpecs {
+    addBlock: (blocknote: any, executeFn: executeFnType, callbackFn?: any) => { block: any, slashItem: any };
+}
+
 @customModule
 @customElements('i-scom-charts')
-export class ScomCharts<T> extends Module {
+export class ScomCharts<T> extends Module implements BlockSpecs {
     private chartContainer: VStack;
     private vStackInfo: HStack;
     private pnlChart: Panel;
@@ -76,6 +82,158 @@ export class ScomCharts<T> extends Module {
         super(parent, options);
     }
 
+    addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: any) {
+        function getData(href: string) {
+            const widgetData = parseUrl(href);
+            if (widgetData) {
+                const { module, properties } = widgetData;
+                if (ChartTypes.includes(module.localPath)) return { ...properties };
+            }
+            return false;
+        }
+        const ChartBlock = blocknote.createBlockSpec({
+            type: "chart",
+            propSchema: {
+                ...blocknote.defaultProps,
+                name: { default: 'scom-line-chart', values: [...ChartTypes] },
+                apiEndpoint: { default: '' },
+                dataSource: { default: 'Dune', values: ['Dune', 'Custom'] },
+                queryId: { default: '' },
+                title: { default: '' },
+                options: { default: undefined },
+                mode: { default: 'Live', values: ['Live', 'Snapshot'] },
+                width: { default: '100%' },
+                height: { default: 'auto' }
+            },
+            content: "none"
+        },
+        {
+            render: (block: any) => {
+                const wrapper = new Panel();
+                const data = JSON.parse(JSON.stringify(block.props));
+                const chart = new ScomChartBlock(wrapper, { data });
+                wrapper.appendChild(chart);
+                return {
+                    dom: wrapper
+                };
+            },
+            parseFn: () => {
+                return [
+                    {
+                        tag: "div[data-content-type=chart]",
+                        contentElement: "[data-editable]"
+                    },
+                    {
+                        tag: "a",
+                        getAttrs: (element: string | HTMLElement) => {
+                            if (typeof element === "string") {
+                                return false;
+                            }
+                            const href = element.getAttribute('href');
+                            if (href) return getData(href);
+                            return false;
+                        },
+                        priority: 404,
+                        node: 'chart'
+                    },
+                    {
+                        tag: "p",
+                        getAttrs: (element: string | HTMLElement) => {
+                            if (typeof element === "string") {
+                                return false;
+                            }
+                            const child = element.firstChild as HTMLElement;
+                            if (child?.nodeName === 'A' && child.getAttribute('href')) {
+                                const href = child.getAttribute('href');
+                                return getData(href);
+                            }
+                            return false;
+                        },
+                        priority: 405,
+                        node: 'chart'
+                    },
+                ]
+            },
+            toExternalHTML: (block: any, editor: any) => {
+                const link = document.createElement("a");
+                const url = getWidgetEmbedUrl(
+                    {
+                        type: 'chart',
+                        props: { ...(block.props || {}) }
+                    }
+                );
+                link.setAttribute("href", url);
+                link.textContent = 'chart';
+                const wrapper = document.createElement("p");
+                wrapper.appendChild(link);
+                return {
+                    dom: wrapper
+                }
+            }
+        });
+
+        const ChartSlashItem = {
+            name: "Chart",
+            execute: (editor: any) => {
+                const block: any = {
+                    type: "chart",
+                    props: {
+                        name: 'scom-area-chart',
+                        "dataSource": "Dune",
+                        "queryId": "2030745",
+                        title: 'ETH Staked - Cumulative',
+                        options: {
+                            xColumn: {
+                                key: 'date',
+                                type: 'time'
+                            },
+                            yColumns: [
+                                'total_eth',
+                            ],
+                            stacking: true,
+                            groupBy: 'depositor_entity_category',
+                            seriesOptions: [
+                                {
+                                    key: 'CEX',
+                                    color: '#d52828'
+                                },
+                                {
+                                    key: 'Liquid Staking',
+                                    color: '#d2da25'
+                                },
+                                {
+                                    key: 'Others',
+                                    color: '#000000'
+                                },
+                                {
+                                    key: 'Staking Pools',
+                                    color: '#49a34f'
+                                },
+                                {
+                                    key: 'Unidentified',
+                                    color: '#bcb8b8'
+                                }
+                            ],
+                            xAxis: {
+                                title: 'Date',
+                                tickFormat: 'MMM YYYY'
+                            },
+                            yAxis: {
+                                title: 'ETH deposited',
+                                labelFormat: '0,000.00ma',
+                                position: 'left'
+                            }
+                        }
+                    }
+                }
+                if (typeof executeFn === 'function') executeFn(editor, block);
+            },
+            aliases: ["chart", "widget"]
+        }
+
+        return { block: ChartBlock, slashItem: ChartSlashItem };
+    }
+
     get theme() {
         return this._theme;
     }
@@ -96,7 +254,7 @@ export class ScomCharts<T> extends Module {
             },
             embededSchema: {
                 dataSchema: {},
-                uiSchema: {} 
+                uiSchema: {}
             }
         };
     }
@@ -108,7 +266,7 @@ export class ScomCharts<T> extends Module {
     showConfigurator(parent: Modal, prop: string) {
         const props = this._getDesignPropValue('data');
         const builderTarget = this.getConfigurators().find((conf: any) => conf.target === 'Builders');
-        const dataAction = builderTarget?.getActions().find((action: any) => action.name === prop);
+        const dataAction = builderTarget?.getActions().find((action: any) => action.name === prop) as any;
         const self = this;
         if (dataAction) {
             const control = dataAction.customUI.render(props, (result: boolean, data: any) => {
@@ -213,91 +371,7 @@ export class ScomCharts<T> extends Module {
                 userInputDataSchema: dataSchema,
                 userInputUISchema: uiSchema
             },
-            {
-                name: 'Data',
-                icon: 'database',
-                command: (builder: any, userInputData: any) => {
-                    let _oldData: IChartConfig<T> = DefaultData;
-                    return {
-                        execute: async () => {
-                            _oldData = { ...this._data };
-                            if (userInputData?.mode) this._data.mode = userInputData?.mode;
-                            if (userInputData?.file) this._data.file = userInputData?.file;
-                            if (userInputData?.dataSource) this._data.dataSource = userInputData?.dataSource;
-                            if (userInputData?.queryId) this._data.queryId = userInputData?.queryId;
-                            if (userInputData?.apiEndpoint) this._data.apiEndpoint = userInputData?.apiEndpoint;
-                            if (userInputData?.options !== undefined) this._data.options = userInputData.options;
-                            if (builder?.setData) builder.setData(this._data);
-                            this.setData(this._data);
-                        },
-                        undo: () => {
-                            if (builder?.setData) builder.setData(_oldData);
-                            this.setData(_oldData);
-                        },
-                        redo: () => { }
-                    }
-                },
-                customUI: {
-                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => {
-                        const vstack = new VStack(null, { gap: '1rem' });
-                        const dataSourceSetup = new ScomChartDataSourceSetup(null, {
-                            ...(data || this._data),
-                            chartData: JSON.stringify(this.chartData),
-                            onCustomDataChanged: async (dataSourceSetupData: any) => {
-                                if (onChange) {
-                                    onChange(true, {
-                                        ...this._data,
-                                        ...dataSourceSetupData
-                                    });
-                                }
-                            }
-                        });
-                        const hstackBtnConfirm = new HStack(null, {
-                            verticalAlignment: 'center',
-                            horizontalAlignment: 'end'
-                        });
-                        const button = new Button(null, {
-                            caption: 'Confirm',
-                            width: 'auto',
-                            padding: { top: '0.5rem', bottom: '0.5rem', left: '1rem', right: '1rem' },
-                            height: 40,
-                            font: { color: Theme.colors.primary.contrastText }
-                        });
-                        hstackBtnConfirm.append(button);
-                        vstack.append(dataSourceSetup);
-                        const dataOptionsForm = new ScomChartsDataForm(null, {
-                            options: data?.options || this._data.options,
-                            dataSchema: JSON.stringify(advancedSchema),
-                            uiSchema: JSON.stringify(builderSchema.advanced.uiSchema)
-                        });
-                        vstack.append(dataOptionsForm);
-                        vstack.append(hstackBtnConfirm);
-                        if (onChange) {
-                            dataOptionsForm.onCustomInputChanged = async (optionsFormData: any) => {
-                                onChange(true, {
-                                    ...(data || this._data),
-                                    ...optionsFormData,
-                                    ...dataSourceSetup.data
-                                });
-                            }
-                        }
-                        button.onClick = async () => {
-                            const { dataSource, file, mode } = dataSourceSetup.data;
-                            if (mode === ModeType.LIVE && !dataSource) return;
-                            if (mode === ModeType.SNAPSHOT && !file?.cid) return;
-                            if (onConfirm) {
-                                const optionsFormData = await dataOptionsForm.refreshFormData();
-                                onConfirm(true, {
-                                    ...(data || this._data),
-                                    ...optionsFormData,
-                                    ...dataSourceSetup.data
-                                });
-                            }
-                        }
-                        return vstack;
-                    }
-                }
-            }
+            this._getDataAction(builderSchema, advancedSchema)
         ]
         // if (advancedSchema) {
         //   const advanced = {
@@ -326,6 +400,94 @@ export class ScomCharts<T> extends Module {
         //   actions.push(advanced);
         // }
         return actions
+    }
+
+    private _getDataAction(builderSchema: IDataSchema, advancedSchema?: IDataSchema) {
+        return {
+            name: 'Data',
+            icon: 'database',
+            command: (builder: any, userInputData: any) => {
+                let _oldData: IChartConfig<T> = DefaultData;
+                return {
+                    execute: async () => {
+                        _oldData = { ...this._data };
+                        if (userInputData?.mode) this._data.mode = userInputData?.mode;
+                        if (userInputData?.file) this._data.file = userInputData?.file;
+                        if (userInputData?.dataSource) this._data.dataSource = userInputData?.dataSource;
+                        if (userInputData?.queryId) this._data.queryId = userInputData?.queryId;
+                        if (userInputData?.apiEndpoint) this._data.apiEndpoint = userInputData?.apiEndpoint;
+                        if (userInputData?.options !== undefined) this._data.options = userInputData.options;
+                        if (builder?.setData) builder.setData(this._data);
+                        this.setData(this._data);
+                    },
+                    undo: () => {
+                        if (builder?.setData) builder.setData(_oldData);
+                        this.setData(_oldData);
+                    },
+                    redo: () => { }
+                }
+            },
+            customUI: {
+                render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => {
+                    const vstack = new VStack(null, { gap: '1rem' });
+                    const dataSourceSetup = new ScomChartDataSourceSetup(null, {
+                        ...(data || this._data),
+                        chartData: JSON.stringify(this.chartData),
+                        onCustomDataChanged: async (dataSourceSetupData: any) => {
+                            if (onChange) {
+                                onChange(true, {
+                                    ...this._data,
+                                    ...dataSourceSetupData
+                                });
+                            }
+                        }
+                    });
+                    const hstackBtnConfirm = new HStack(null, {
+                        verticalAlignment: 'center',
+                        horizontalAlignment: 'end'
+                    });
+                    const button = new Button(null, {
+                        caption: 'Confirm',
+                        width: 'auto',
+                        padding: { top: '0.5rem', bottom: '0.5rem', left: '1rem', right: '1rem' },
+                        height: 40,
+                        font: { color: Theme.colors.primary.contrastText }
+                    });
+                    hstackBtnConfirm.append(button);
+                    vstack.append(dataSourceSetup);
+                    const dataOptionsForm = new ScomChartsDataForm(null, {
+                        options: data?.options || this._data.options,
+                        dataSchema: JSON.stringify(advancedSchema),
+                        uiSchema: JSON.stringify(builderSchema.advanced.uiSchema)
+                    });
+                    vstack.append(dataOptionsForm);
+                    vstack.append(hstackBtnConfirm);
+                    if (onChange) {
+                        dataOptionsForm.onCustomInputChanged = async (optionsFormData: any) => {
+                            onChange(true, {
+                                ...(data || this._data),
+                                ...optionsFormData,
+                                ...dataSourceSetup.data
+                            });
+                        }
+                    }
+                    button.onClick = async () => {
+                        const { dataSource, file, mode } = dataSourceSetup.data;
+                        if (mode === ModeType.LIVE && !dataSource) return;
+                        if (mode === ModeType.SNAPSHOT && !file?.cid) return;
+                        if (onConfirm) {
+                            const optionsFormData = await dataOptionsForm.refreshFormData();
+                            onConfirm(true, {
+                                ...(data || this._data),
+                                ...optionsFormData,
+                                ...dataSourceSetup.data
+                            });
+                        }
+                    }
+                    return vstack;
+                }
+            }
+        }
     }
 
     getConfigurators() {
@@ -380,6 +542,19 @@ export class ScomCharts<T> extends Module {
                 setData: this.setData.bind(this),
                 getTag: this.getTag.bind(this),
                 setTag: this.setTag.bind(this)
+            },
+            {
+                name: 'Editor',
+                target: 'Editor',
+                getActions: () => {
+                    const builderSchema = this.getFormSchema(this.columnNames)?.builderSchema;
+                    const advancedSchema = builderSchema.advanced.dataSchema as any;
+                    return [
+                        this._getDataAction(builderSchema, advancedSchema)
+                    ]
+                },
+                getData: this.getData.bind(this),
+                setData: this.setData.bind(this)
             }
         ]
     }
@@ -403,12 +578,12 @@ export class ScomCharts<T> extends Module {
     }
 
     private async updateChartData() {
-        this.loadingElm.visible = true;
+        if (this.loadingElm) this.loadingElm.visible = true;
         if (this._data?.mode === ModeType.SNAPSHOT)
             await this.renderSnapshotData();
         else
             await this.renderLiveData();
-        this.loadingElm.visible = false;
+        if (this.loadingElm) this.loadingElm.visible = false;
     }
 
     private async renderSnapshotData() {

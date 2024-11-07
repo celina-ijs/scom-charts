@@ -105,3 +105,50 @@ export const concatUnique = (obj1: { [key: string]: any }, obj2: { [key: string]
     return acc;
   }, {});
 }
+
+export const ChartTypes = ['scom-pie-chart', 'scom-line-chart', 'scom-bar-chart', 'scom-area-chart', 'scom-mixed-chart', 'scom-scatter-chart', 'scom-counter'];
+
+export const getChartTypeOptions = () => {
+  return [...ChartTypes].map(type => ({ value: type, label: type.split('-')[1]}))
+}
+
+export const parseStringToObject = (value: string) => {
+  try {
+    const utf8String = decodeURIComponent(value);
+    const decodedString = window.atob(utf8String);
+    const newData = JSON.parse(decodedString);
+    return { ...newData };
+  } catch {}
+  return null;
+}
+
+export function parseUrl(href: string) {
+  const WIDGET_URL = "https://widget.noto.fan";
+  if (href.startsWith(WIDGET_URL)) {
+    let arr = href.split('/scom/');
+    let paths = arr[1].split('/');
+    const dataStr = paths.slice(1).join('/');
+    return dataStr ? parseStringToObject(dataStr) : null;
+  }
+  return null;
+}
+
+const WIDGET_URL = 'https://widget.noto.fan';
+export const getWidgetEmbedUrl = (block: any) => {
+  const type = block.type as string;
+  let module = null;
+  module = {
+    name: `@scom/${block.props?.name || 'scom-line-chart'}`,
+    localPath: `${block.props?.name || 'scom-line-chart'}`
+  }
+  if (module) {
+    const widgetData = {
+      module,
+      properties: { ...block.props },
+    };
+    const encodedWidgetDataString = encodeURIComponent(window.btoa(JSON.stringify(widgetData)));
+    const moduleName = module.name.slice(1);
+    return `${WIDGET_URL}/#!/${moduleName}/${encodedWidgetDataString}`;
+  }
+  return '';
+}
