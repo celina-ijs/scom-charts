@@ -32,6 +32,59 @@ declare module "@scom/scom-charts/components/dataForm.tsx" {
         render(): any;
     }
 }
+/// <amd-module name="@scom/scom-charts/components/chartBlock.tsx" />
+declare module "@scom/scom-charts/components/chartBlock.tsx" {
+    import { ControlElement, Module, Container } from '@ijstech/components';
+    import { ModeType } from '@scom/scom-chart-data-source-setup';
+    interface IChartConfig {
+        name?: string;
+        dataSource: string;
+        queryId?: string;
+        apiEndpoint?: string;
+        title: string;
+        description?: string;
+        options: any;
+        file?: {
+            cid: string;
+            name: string;
+        };
+        mode: ModeType;
+    }
+    interface ScomChartBlockElement extends ControlElement {
+        data: IChartConfig;
+    }
+    global {
+        namespace JSX {
+            interface IntrinsicElements {
+                ['i-scom-charts--block']: ScomChartBlockElement;
+            }
+        }
+    }
+    export class ScomChartBlock extends Module {
+        private chartWrapper;
+        private chartEl;
+        private tempChart;
+        private _data;
+        private currentType;
+        static create(options?: ScomChartBlockElement, parent?: Container): Promise<ScomChartBlock>;
+        constructor(parent?: Container, options?: any);
+        getData(): IChartConfig;
+        setData(data: IChartConfig): Promise<void>;
+        getChartElm(): any;
+        private renderChart;
+        getConfigurators(): {
+            name: string;
+            target: string;
+            getActions: () => any;
+            getData: any;
+            setData: any;
+        }[];
+        updateType(type: string): Promise<any>;
+        private getActions;
+        init(): Promise<void>;
+        render(): void;
+    }
+}
 /// <amd-module name="@scom/scom-charts/interface.ts" />
 declare module "@scom/scom-charts/interface.ts" {
     import { BigNumber } from "@ijstech/eth-wallet";
@@ -97,6 +150,7 @@ declare module "@scom/scom-charts/components/chart.tsx" {
 /// <amd-module name="@scom/scom-charts/components/index.ts" />
 declare module "@scom/scom-charts/components/index.ts" {
     export { ScomChartsDataForm } from "@scom/scom-charts/components/dataForm.tsx";
+    export { ScomChartBlock } from "@scom/scom-charts/components/chartBlock.tsx";
     export { Charts } from "@scom/scom-charts/components/chart.tsx";
 }
 /// <amd-module name="@scom/scom-charts/index.css.ts" />
@@ -139,6 +193,14 @@ declare module "@scom/scom-charts/utils.ts" {
     }, obj2: {
         [key: string]: any;
     }) => {};
+    export const ChartTypes: string[];
+    export const getChartTypeOptions: () => {
+        value: string;
+        label: string;
+    }[];
+    export const parseStringToObject: (value: string) => any;
+    export function parseUrl(href: string): any;
+    export const getWidgetEmbedUrl: (block: any) => string;
 }
 /// <amd-module name="@scom/scom-charts" />
 declare module "@scom/scom-charts" {
@@ -159,7 +221,14 @@ declare module "@scom/scom-charts" {
             }
         }
     }
-    export class ScomCharts<T> extends Module {
+    type executeFnType = (editor: any, block: any) => void;
+    interface BlockSpecs {
+        addBlock: (blocknote: any, executeFn: executeFnType, callbackFn?: any) => {
+            block: any;
+            slashItem: any;
+        };
+    }
+    export class ScomCharts<T> extends Module implements BlockSpecs {
         private chartContainer;
         private vStackInfo;
         private pnlChart;
@@ -177,6 +246,14 @@ declare module "@scom/scom-charts" {
         tag: any;
         static create(options?: ScomChartsElement<any>, parent?: Container): Promise<ScomCharts<any>>;
         constructor(parent?: Container, options?: ScomChartsElement<T>);
+        addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: any): {
+            block: any;
+            slashItem: {
+                name: string;
+                execute: (editor: any) => void;
+                aliases: string[];
+            };
+        };
         get theme(): ThemeType;
         set theme(value: ThemeType);
         getFormSchema(columns: string[]): {
@@ -201,6 +278,7 @@ declare module "@scom/scom-charts" {
         private getTag;
         private setTag;
         private _getActions;
+        private _getDataAction;
         getConfigurators(): ({
             name: string;
             target: string;
@@ -212,9 +290,9 @@ declare module "@scom/scom-charts" {
                     undo: () => void;
                     redo: () => void;
                 };
-                userInputDataSchema: IDataSchema;
-                userInputUISchema: IUISchema;
-                customUI?: undefined;
+                customUI: {
+                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
+                };
             } | {
                 name: string;
                 icon: string;
@@ -223,11 +301,8 @@ declare module "@scom/scom-charts" {
                     undo: () => void;
                     redo: () => void;
                 };
-                customUI: {
-                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
-                };
-                userInputDataSchema?: undefined;
-                userInputUISchema?: undefined;
+                userInputDataSchema: IDataSchema;
+                userInputUISchema: IUISchema;
             })[];
             getData: any;
             setData: (data: IChartConfig<T>) => Promise<void>;
@@ -246,10 +321,32 @@ declare module "@scom/scom-charts" {
                     undo: () => void;
                     redo: () => void;
                 };
+                customUI: {
+                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
+                };
+            } | {
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
                 userInputDataSchema: IDataSchema;
                 userInputUISchema: IUISchema;
-                customUI?: undefined;
-            } | {
+            })[];
+            getLinkParams: () => {
+                data: string;
+            };
+            setLinkParams: (params: any) => Promise<void>;
+            getData: any;
+            setData: any;
+            getTag: any;
+            setTag: any;
+        } | {
+            name: string;
+            target: string;
+            getActions: () => {
                 name: string;
                 icon: string;
                 command: (builder: any, userInputData: any) => {
@@ -260,17 +357,13 @@ declare module "@scom/scom-charts" {
                 customUI: {
                     render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
                 };
-                userInputDataSchema?: undefined;
-                userInputUISchema?: undefined;
-            })[];
-            getLinkParams: () => {
-                data: string;
-            };
-            setLinkParams: (params: any) => Promise<void>;
+            }[];
             getData: any;
             setData: any;
-            getTag: any;
-            setTag: any;
+            getTag?: undefined;
+            setTag?: undefined;
+            getLinkParams?: undefined;
+            setLinkParams?: undefined;
         })[];
         private updateStyle;
         private updateTheme;
