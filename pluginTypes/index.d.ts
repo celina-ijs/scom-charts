@@ -1,3 +1,4 @@
+/// <reference path="@ijstech/components/index.d.ts" />
 /// <amd-module name="@scom/scom-charts/components/dataForm.tsx" />
 declare module "@scom/scom-charts/components/dataForm.tsx" {
     import { Module, ControlElement, Container } from '@ijstech/components';
@@ -31,6 +32,71 @@ declare module "@scom/scom-charts/components/dataForm.tsx" {
         init(): Promise<void>;
         render(): any;
     }
+}
+/// <amd-module name="@scom/scom-charts/utils.ts" />
+declare module "@scom/scom-charts/utils.ts" {
+    import { BigNumber } from '@ijstech/eth-wallet';
+    import { ModeType } from '@scom/scom-chart-data-source-setup';
+    export const isNumeric: (value: string | number | BigNumber) => boolean;
+    export const formatNumber: (num: number, options?: {
+        format?: string;
+        decimals?: number;
+        percentValues?: boolean;
+    }) => any;
+    export const formatNumberByFormat: (num: number, format: string, separators?: boolean) => any;
+    export const groupArrayByKey: (arr: [Date | string, string | number][], isMerged?: boolean) => (string | number | Date)[][];
+    export const groupByCategory: (data: {
+        [key: string]: any;
+    }[], category: string, xAxis: string, yAxis: string) => {
+        [key: string]: any;
+    };
+    export const extractUniqueTimes: (data: {
+        [key: string]: any;
+    }[], keyValue: string) => {
+        [key: string]: any;
+    };
+    export const concatUnique: (obj1: {
+        [key: string]: any;
+    }, obj2: {
+        [key: string]: any;
+    }) => {};
+    export const ChartTypes: string[];
+    export const DEFAULT_CHART_TYPE = "scom-line-chart";
+    export const DefaultData: {
+        name: string;
+        dataSource: string;
+        queryId: string;
+        apiEndpoint: string;
+        title: string;
+        options: any;
+        mode: ModeType;
+    };
+    export const getInitLineChartData: () => {
+        dataSource: string;
+        mode: ModeType;
+        apiEndpoint: string;
+        title: string;
+        options: {
+            xColumn: {
+                key: string;
+                type: string;
+            };
+            yColumns: string[];
+            seriesOptions: {
+                key: string;
+                title: string;
+                color: string;
+            }[];
+            xAxis: {
+                title: string;
+                tickFormat: string;
+            };
+            yAxis: {
+                labelFormat: string;
+                position: string;
+            };
+        };
+    };
 }
 /// <amd-module name="@scom/scom-charts/components/chartBlock.tsx" />
 declare module "@scom/scom-charts/components/chartBlock.tsx" {
@@ -167,116 +233,29 @@ declare module "@scom/scom-charts/assets.ts" {
     };
     export default _default;
 }
-/// <amd-module name="@scom/scom-charts/utils.ts" />
-declare module "@scom/scom-charts/utils.ts" {
-    import { BigNumber } from '@ijstech/eth-wallet';
-    export const isNumeric: (value: string | number | BigNumber) => boolean;
-    export const formatNumber: (num: number, options?: {
-        format?: string;
-        decimals?: number;
-        percentValues?: boolean;
-    }) => any;
-    export const formatNumberByFormat: (num: number, format: string, separators?: boolean) => any;
-    export const groupArrayByKey: (arr: [Date | string, string | number][], isMerged?: boolean) => (string | number | Date)[][];
-    export const groupByCategory: (data: {
-        [key: string]: any;
-    }[], category: string, xAxis: string, yAxis: string) => {
-        [key: string]: any;
-    };
-    export const extractUniqueTimes: (data: {
-        [key: string]: any;
-    }[], keyValue: string) => {
-        [key: string]: any;
-    };
-    export const concatUnique: (obj1: {
-        [key: string]: any;
-    }, obj2: {
-        [key: string]: any;
-    }) => {};
-    export const ChartTypes: string[];
-    export const getChartTypeOptions: () => {
-        value: string;
-        label: string;
-    }[];
-    export const parseStringToObject: (value: string) => any;
-    export function parseUrl(href: string): any;
-    export const getWidgetEmbedUrl: (block: any) => string;
-}
-/// <amd-module name="@scom/scom-charts" />
-declare module "@scom/scom-charts" {
-    import { Module, ControlElement, Container, IDataSchema, VStack, IUISchema, Modal } from '@ijstech/components';
-    import { Charts } from "@scom/scom-charts/components/index.ts";
-    import { IChartConfig, ThemeType } from "@scom/scom-charts/interface.ts";
-    export * from "@scom/scom-charts/utils.ts";
-    export { Charts };
-    interface ScomChartsElement<T> extends ControlElement {
-        lazyLoad?: boolean;
-        data: IChartConfig<T>;
-        defautData?: IChartConfig<T>;
-    }
-    global {
-        namespace JSX {
-            interface IntrinsicElements {
-                ['i-scom-charts']: ScomChartsElement<any>;
-            }
-        }
-    }
-    type executeFnType = (editor: any, block: any) => void;
-    interface BlockSpecs {
-        addBlock: (blocknote: any, executeFn: executeFnType, callbackFn?: any) => {
-            block: any;
-            slashItem: any;
-        };
-    }
-    export class ScomCharts<T> extends Module implements BlockSpecs {
-        private chartContainer;
-        private vStackInfo;
-        private pnlChart;
-        private loadingElm;
-        private lbTitle;
-        private lbDescription;
-        private chartEl;
-        protected _data: IChartConfig<T>;
-        private _theme;
-        protected chartData: {
+/// <amd-module name="@scom/scom-charts/model.ts" />
+declare module "@scom/scom-charts/model.ts" {
+    import { IDataSchema, IUISchema, Module, VStack } from "@ijstech/components";
+    import { IChartConfig } from "@scom/scom-charts/interface.ts";
+    export class Model<T> {
+        private module;
+        private _data;
+        private _chartData;
+        private _defaultData;
+        private columnNames;
+        updateWidget: () => void;
+        updateChartData: () => void;
+        getFormSchema: (columns: string[]) => any;
+        constructor(module: Module);
+        set defaultData(value: IChartConfig<T>);
+        get defaultData(): IChartConfig<T>;
+        get chartData(): {
             [key: string]: string | number;
         }[];
-        private _defautData;
-        private columnNames;
-        tag: any;
-        static create(options?: ScomChartsElement<any>, parent?: Container): Promise<ScomCharts<any>>;
-        constructor(parent?: Container, options?: ScomChartsElement<T>);
-        addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: any): {
-            block: any;
-            slashItem: {
-                name: string;
-                execute: (editor: any) => void;
-                aliases: string[];
-            };
-        };
-        get theme(): ThemeType;
-        set theme(value: ThemeType);
-        getFormSchema(columns: string[]): {
-            builderSchema: {
-                dataSchema: {};
-                uiSchema: {};
-                advanced: {
-                    dataSchema: {};
-                    uiSchema: {};
-                };
-            };
-            embededSchema: {
-                dataSchema: {};
-                uiSchema: {};
-            };
-        };
-        getChartData(): any;
-        showConfigurator(parent: Modal, prop: string): void;
-        private onConfigSave;
-        private getData;
-        private setData;
-        private getTag;
-        private setTag;
+        setData(value: IChartConfig<T>): Promise<void>;
+        getData(): IChartConfig<T>;
+        getTag(): any;
+        setTag(value: any, fromParent?: boolean): Promise<void>;
         private _getActions;
         private _getDataAction;
         getConfigurators(): ({
@@ -365,14 +344,179 @@ declare module "@scom/scom-charts" {
             getLinkParams?: undefined;
             setLinkParams?: undefined;
         })[];
+        fetchData(): Promise<void>;
+        private renderSnapshotData;
+        private renderLiveData;
+    }
+}
+/// <amd-module name="@scom/scom-charts" />
+declare module "@scom/scom-charts" {
+    import { Module, ControlElement, Container, VStack, Modal } from '@ijstech/components';
+    import { Charts } from "@scom/scom-charts/components/index.ts";
+    import { IChartConfig, ThemeType } from "@scom/scom-charts/interface.ts";
+    import { Model } from "@scom/scom-charts/model.ts";
+    import { BlockNoteSpecs, callbackFnType, executeFnType } from '@scom/scom-blocknote-sdk';
+    export * from "@scom/scom-charts/utils.ts";
+    export { Charts };
+    interface ScomChartsElement<T> extends ControlElement {
+        lazyLoad?: boolean;
+        data: IChartConfig<T>;
+        defaultData?: IChartConfig<T>;
+    }
+    global {
+        namespace JSX {
+            interface IntrinsicElements {
+                ['i-scom-charts']: ScomChartsElement<any>;
+            }
+        }
+    }
+    export class ScomCharts<T> extends Module implements BlockNoteSpecs {
+        private chartContainer;
+        private vStackInfo;
+        private pnlChart;
+        private loadingElm;
+        private lbTitle;
+        private lbDescription;
+        private chartEl;
+        protected model: Model<T>;
+        private _theme;
+        protected get chartData(): {
+            [key: string]: string | number;
+        }[];
+        tag: any;
+        static create(options?: ScomChartsElement<any>, parent?: Container): Promise<ScomCharts<any>>;
+        constructor(parent?: Container, options?: ScomChartsElement<T>);
+        addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: callbackFnType): {
+            block: any;
+            slashItem: {
+                name: string;
+                execute: (editor: any) => void;
+                aliases: string[];
+                group: string;
+                icon: {
+                    name: string;
+                };
+                hint: string;
+            };
+            moduleData: {
+                name: string;
+                localPath: string;
+            };
+        };
+        get theme(): ThemeType;
+        set theme(value: ThemeType);
+        getFormSchema(columns: string[]): {
+            builderSchema: {
+                dataSchema: {};
+                uiSchema: {};
+                advanced: {
+                    dataSchema: {};
+                    uiSchema: {};
+                };
+            };
+            embededSchema: {
+                dataSchema: {};
+                uiSchema: {};
+            };
+        };
+        getChartData(): any;
+        showConfigurator(parent: Modal, prop: string): void;
+        private onConfigSave;
+        private setData;
+        private setTag;
+        getConfigurators(): ({
+            name: string;
+            target: string;
+            getActions: () => ({
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
+                customUI: {
+                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
+                };
+            } | {
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
+                userInputDataSchema: import("@ijstech/components").IDataSchema;
+                userInputUISchema: import("@ijstech/components").IUISchema;
+            })[];
+            getData: any;
+            setData: (data: IChartConfig<T>) => Promise<void>;
+            getTag: any;
+            setTag: any;
+            getLinkParams?: undefined;
+            setLinkParams?: undefined;
+        } | {
+            name: string;
+            target: string;
+            getActions: () => ({
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
+                customUI: {
+                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
+                };
+            } | {
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
+                userInputDataSchema: import("@ijstech/components").IDataSchema;
+                userInputUISchema: import("@ijstech/components").IUISchema;
+            })[];
+            getLinkParams: () => {
+                data: string;
+            };
+            setLinkParams: (params: any) => Promise<void>;
+            getData: any;
+            setData: any;
+            getTag: any;
+            setTag: any;
+        } | {
+            name: string;
+            target: string;
+            getActions: () => {
+                name: string;
+                icon: string;
+                command: (builder: any, userInputData: any) => {
+                    execute: () => Promise<void>;
+                    undo: () => void;
+                    redo: () => void;
+                };
+                customUI: {
+                    render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => VStack;
+                };
+            }[];
+            getData: any;
+            setData: any;
+            getTag?: undefined;
+            setTag?: undefined;
+            getLinkParams?: undefined;
+            setLinkParams?: undefined;
+        })[];
+        resize(): void;
         private updateStyle;
         private updateTheme;
         private onUpdateBlock;
         private updateChartData;
-        private renderSnapshotData;
-        private renderLiveData;
         private renderChart;
-        resize(): void;
+        private initModel;
         init(): Promise<void>;
         render(): any;
     }

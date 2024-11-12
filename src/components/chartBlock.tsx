@@ -7,6 +7,7 @@ import {
   application
 } from '@ijstech/components';
 import { ModeType } from '@scom/scom-chart-data-source-setup';
+import { DEFAULT_CHART_TYPE } from '../utils';
 
 interface IChartConfig {
   name?: string;
@@ -28,7 +29,7 @@ interface ScomChartBlockElement extends ControlElement {
 }
 
 const DefaultData = {
-  name: 'scom-line-chart',
+  name: DEFAULT_CHART_TYPE,
   dataSource: 'Dune',
   queryId: '',
   apiEndpoint: '',
