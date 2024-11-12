@@ -1,5 +1,6 @@
 import { BigNumber } from '@ijstech/eth-wallet';
 import { FormatUtils } from "@ijstech/components";
+import { ModeType } from '@scom/scom-chart-data-source-setup';
 
 export const isNumeric = (value: string | number | BigNumber): boolean => {
   if (value instanceof BigNumber) {
@@ -108,47 +109,48 @@ export const concatUnique = (obj1: { [key: string]: any }, obj2: { [key: string]
 
 export const ChartTypes = ['scom-pie-chart', 'scom-line-chart', 'scom-bar-chart', 'scom-area-chart', 'scom-mixed-chart', 'scom-scatter-chart', 'scom-counter'];
 
-export const getChartTypeOptions = () => {
-  return [...ChartTypes].map(type => ({ value: type, label: type.split('-')[1]}))
+export const DEFAULT_CHART_TYPE = 'scom-line-chart';
+
+export const DefaultData = {
+  name: DEFAULT_CHART_TYPE,
+  dataSource: 'Dune',
+  queryId: '',
+  apiEndpoint: '',
+  title: '',
+  options: undefined,
+  mode: ModeType.LIVE
 }
 
-export const parseStringToObject = (value: string) => {
-  try {
-    const utf8String = decodeURIComponent(value);
-    const decodedString = window.atob(utf8String);
-    const newData = JSON.parse(decodedString);
-    return { ...newData };
-  } catch {}
-  return null;
+export const getInitLineChartData = () => {
+  return {
+    dataSource: 'Custom',
+    mode: ModeType.LIVE,
+    apiEndpoint: 'https://api.dune.com/api/v1/query/3865244/results?api_key=',
+    title: 'MEV Blocks Trend by Builders',
+    options: {
+      xColumn: {
+        key: 'block_date',
+        type: 'time'
+      },
+      yColumns: [
+        'mev_block_count',
+      ],
+      seriesOptions: [
+        {
+          key: 'mev_block_count',
+          title: 'Blocks',
+          color: '#000'
+        }
+      ],
+      xAxis: {
+        title: 'Date',
+        tickFormat: 'MMM DD'
+      },
+      yAxis: {
+        labelFormat: '0,000.00',
+        position: 'left'
+      }
+    }
+  }
 }
 
-export function parseUrl(href: string) {
-  const WIDGET_URL = "https://widget.noto.fan";
-  if (href.startsWith(WIDGET_URL)) {
-    let arr = href.split('/scom/');
-    let paths = arr[1].split('/');
-    const dataStr = paths.slice(1).join('/');
-    return dataStr ? parseStringToObject(dataStr) : null;
-  }
-  return null;
-}
-
-const WIDGET_URL = 'https://widget.noto.fan';
-export const getWidgetEmbedUrl = (block: any) => {
-  const type = block.type as string;
-  let module = null;
-  module = {
-    name: `@scom/${block.props?.name || 'scom-line-chart'}`,
-    localPath: `${block.props?.name || 'scom-line-chart'}`
-  }
-  if (module) {
-    const widgetData = {
-      module,
-      properties: { ...block.props },
-    };
-    const encodedWidgetDataString = encodeURIComponent(window.btoa(JSON.stringify(widgetData)));
-    const moduleName = module.name.slice(1);
-    return `${WIDGET_URL}/#!/${moduleName}/${encodedWidgetDataString}`;
-  }
-  return '';
-}

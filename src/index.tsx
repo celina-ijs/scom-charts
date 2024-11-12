@@ -4,24 +4,19 @@ import {
     ControlElement,
     customElements,
     Container,
-    IDataSchema,
     HStack,
     Label,
     VStack,
-    Styles,
     Panel,
-    Button,
-    IUISchema,
     Modal
 } from '@ijstech/components';
-import { Charts, ScomChartBlock, ScomChartsDataForm } from './components/index';
+import { Charts, ScomChartBlock } from './components/index';
 import { chartStyle, containerStyle, textStyle } from './index.css';
 import assets from './assets';
-import ScomChartDataSourceSetup, { ModeType, fetchContentByCID, callAPI, DataSource } from '@scom/scom-chart-data-source-setup';
 import { IChartConfig, ThemeType } from './interface';
-import { ChartTypes, getWidgetEmbedUrl, parseUrl } from './utils';
-
-const Theme = Styles.Theme.ThemeVars;
+import { ChartTypes, DEFAULT_CHART_TYPE, getInitLineChartData } from './utils';
+import { Model } from './model';
+import { BlockNoteSpecs, callbackFnType, executeFnType, getWidgetEmbedUrl, parseUrl } from '@scom/scom-blocknote-sdk';
 
 export * from './utils';
 export { Charts };
@@ -29,7 +24,7 @@ export { Charts };
 interface ScomChartsElement<T> extends ControlElement {
     lazyLoad?: boolean;
     data: IChartConfig<T>;
-    defautData?: IChartConfig<T>;
+    defaultData?: IChartConfig<T>;
 }
 
 declare global {
@@ -40,23 +35,9 @@ declare global {
     }
 }
 
-const DefaultData: IChartConfig<any> = {
-    dataSource: DataSource.Dune,
-    queryId: '',
-    apiEndpoint: '',
-    title: '',
-    options: undefined,
-    mode: ModeType.LIVE
-};
-
-type executeFnType = (editor: any, block: any) => void;
-interface BlockSpecs {
-    addBlock: (blocknote: any, executeFn: executeFnType, callbackFn?: any) => { block: any, slashItem: any };
-}
-
 @customModule
 @customElements('i-scom-charts')
-export class ScomCharts<T> extends Module implements BlockSpecs {
+export class ScomCharts<T> extends Module implements BlockNoteSpecs {
     private chartContainer: VStack;
     private vStackInfo: HStack;
     private pnlChart: Panel;
@@ -65,11 +46,13 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
     private lbDescription: Label;
     private chartEl: Charts<T>;
 
-    protected _data: IChartConfig<T> = DefaultData;
+    protected model: Model<T>;
     private _theme: ThemeType = 'light';
-    protected chartData: { [key: string]: string | number }[] = [];
-    private _defautData: any = null;
-    private columnNames: string[] = [];
+
+    protected get chartData() {
+        return this.model.chartData;
+    }
+
     tag: any = {};
 
     static async create(options?: ScomChartsElement<any>, parent?: Container) {
@@ -82,7 +65,8 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
         super(parent, options);
     }
 
-    addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: any) {
+    addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: callbackFnType) {
+        const blockType = 'chart';
         function getData(href: string) {
             const widgetData = parseUrl(href);
             if (widgetData) {
@@ -92,10 +76,10 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
             return false;
         }
         const ChartBlock = blocknote.createBlockSpec({
-            type: "chart",
+            type: blockType,
             propSchema: {
                 ...blocknote.defaultProps,
-                name: { default: 'scom-line-chart', values: [...ChartTypes] },
+                name: { default: DEFAULT_CHART_TYPE, values: [...ChartTypes] },
                 apiEndpoint: { default: '' },
                 dataSource: { default: 'Dune', values: ['Dune', 'Custom'] },
                 queryId: { default: '' },
@@ -107,131 +91,101 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
             },
             content: "none"
         },
-        {
-            render: (block: any) => {
-                const wrapper = new Panel();
-                const data = JSON.parse(JSON.stringify(block.props));
-                const chart = new ScomChartBlock(wrapper, { data });
-                wrapper.appendChild(chart);
-                return {
-                    dom: wrapper
-                };
-            },
-            parseFn: () => {
-                return [
-                    {
-                        tag: "div[data-content-type=chart]",
-                        contentElement: "[data-editable]"
-                    },
-                    {
-                        tag: "a",
-                        getAttrs: (element: string | HTMLElement) => {
-                            if (typeof element === "string") {
-                                return false;
-                            }
-                            const href = element.getAttribute('href');
-                            if (href) return getData(href);
-                            return false;
+            {
+                render: (block: any) => {
+                    const wrapper = new Panel();
+                    const data = JSON.parse(JSON.stringify(block.props));
+                    const chart = new ScomChartBlock(wrapper, { data });
+                    wrapper.appendChild(chart);
+                    return {
+                        dom: wrapper
+                    };
+                },
+                parseFn: () => {
+                    return [
+                        {
+                            tag: `div[data-content-type=${blockType}]`,
+                            contentElement: "[data-editable]"
                         },
-                        priority: 404,
-                        node: 'chart'
-                    },
-                    {
-                        tag: "p",
-                        getAttrs: (element: string | HTMLElement) => {
-                            if (typeof element === "string") {
+                        {
+                            tag: "a",
+                            getAttrs: (element: string | HTMLElement) => {
+                                if (typeof element === "string") {
+                                    return false;
+                                }
+                                const href = element.getAttribute('href');
+                                if (href) return getData(href);
                                 return false;
-                            }
-                            const child = element.firstChild as HTMLElement;
-                            if (child?.nodeName === 'A' && child.getAttribute('href')) {
-                                const href = child.getAttribute('href');
-                                return getData(href);
-                            }
-                            return false;
+                            },
+                            priority: 404,
+                            node: blockType
                         },
-                        priority: 405,
-                        node: 'chart'
-                    },
-                ]
-            },
-            toExternalHTML: (block: any, editor: any) => {
-                const link = document.createElement("a");
-                const url = getWidgetEmbedUrl(
-                    {
-                        type: 'chart',
-                        props: { ...(block.props || {}) }
+                        {
+                            tag: "p",
+                            getAttrs: (element: string | HTMLElement) => {
+                                if (typeof element === "string") {
+                                    return false;
+                                }
+                                const child = element.firstChild as HTMLElement;
+                                if (child?.nodeName === 'A' && child.getAttribute('href')) {
+                                    const href = child.getAttribute('href');
+                                    return getData(href);
+                                }
+                                return false;
+                            },
+                            priority: 405,
+                            node: blockType
+                        },
+                    ]
+                },
+                toExternalHTML: (block: any, editor: any) => {
+                    const link = document.createElement("a");
+                    const module = {
+                        name: `@scom/${block.props?.name || DEFAULT_CHART_TYPE}`,
+                        localPath: `${block.props?.name || DEFAULT_CHART_TYPE}`
+                    };
+                    const url = getWidgetEmbedUrl(
+                        {
+                            type: blockType,
+                            props: { ...(block.props || {}) }
+                        },
+                        module
+                    );
+                    link.setAttribute("href", url);
+                    link.textContent = 'chart';
+                    const wrapper = document.createElement("p");
+                    wrapper.appendChild(link);
+                    return {
+                        dom: wrapper
                     }
-                );
-                link.setAttribute("href", url);
-                link.textContent = 'chart';
-                const wrapper = document.createElement("p");
-                wrapper.appendChild(link);
-                return {
-                    dom: wrapper
                 }
-            }
-        });
+            });
 
         const ChartSlashItem = {
             name: "Chart",
             execute: (editor: any) => {
                 const block: any = {
-                    type: "chart",
+                    type: blockType,
                     props: {
-                        name: 'scom-area-chart',
+                        name: DEFAULT_CHART_TYPE,
                         "dataSource": "Dune",
-                        "queryId": "2030745",
-                        title: 'ETH Staked - Cumulative',
-                        options: {
-                            xColumn: {
-                                key: 'date',
-                                type: 'time'
-                            },
-                            yColumns: [
-                                'total_eth',
-                            ],
-                            stacking: true,
-                            groupBy: 'depositor_entity_category',
-                            seriesOptions: [
-                                {
-                                    key: 'CEX',
-                                    color: '#d52828'
-                                },
-                                {
-                                    key: 'Liquid Staking',
-                                    color: '#d2da25'
-                                },
-                                {
-                                    key: 'Others',
-                                    color: '#000000'
-                                },
-                                {
-                                    key: 'Staking Pools',
-                                    color: '#49a34f'
-                                },
-                                {
-                                    key: 'Unidentified',
-                                    color: '#bcb8b8'
-                                }
-                            ],
-                            xAxis: {
-                                title: 'Date',
-                                tickFormat: 'MMM YYYY'
-                            },
-                            yAxis: {
-                                title: 'ETH deposited',
-                                labelFormat: '0,000.00ma',
-                                position: 'left'
-                            }
-                        }
+                        ...getInitLineChartData()
                     }
                 }
                 if (typeof executeFn === 'function') executeFn(editor, block);
             },
-            aliases: ["chart", "widget"]
+            aliases: ["chart", "widget"],
+            group: "Widget",
+            icon: { name: 'chart-line' },
+            hint: "Insert a chart widget",
         }
 
-        return { block: ChartBlock, slashItem: ChartSlashItem };
+        const moduleData = {
+            name: 'scom-charts',
+            localPath: '@scom/scom-charts'
+        }
+
+        return { block: ChartBlock, slashItem: ChartSlashItem, moduleData };
     }
 
     get theme() {
@@ -283,280 +237,21 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
         this.setData({ ...data });
     }
 
-    private getData() {
-        return this._data;
-    }
-
-    private async setData(data: IChartConfig<T>) {
-        this._data = data;
-        this.updateChartData();
-    }
-
-    private getTag() {
-        return this.tag;
+    private async setData(value: IChartConfig<T>) {
+        await this.model.setData(value);
     }
 
     private async setTag(value: any, fromParent?: boolean) {
-        if (fromParent) {
-            this.tag.parentFontColor = value.fontColor;
-            this.tag.parentCustomFontColor = value.customFontColor;
-            this.tag.parentBackgroundColor = value.backgroundColor;
-            this.tag.parentCustomBackgroundColor = value.customBackgoundColor;
-            this.tag.customWidgetsBackground = value.customWidgetsBackground;
-            this.tag.widgetsBackground = value.widgetsBackground;
-            this.tag.customWidgetsColor = value.customWidgetsColor;
-            this.tag.widgetsColor = value.widgetsColor;
-            this.onUpdateBlock();
-            return;
-        }
-        const newValue = value || {};
-        for (let prop in newValue) {
-            if (newValue.hasOwnProperty(prop)) {
-                this.tag[prop] = newValue[prop];
-            }
-        }
-        this.width = this.tag.width || 700;
-        this.height = this.tag.height || 500;
-        this.onUpdateBlock();
-    }
-
-    private _getActions(dataSchema: IDataSchema, uiSchema: IUISchema, advancedSchema?: IDataSchema) {
-        const builderSchema = this.getFormSchema(this.columnNames)?.builderSchema;
-        const actions = [
-            {
-                name: 'Edit',
-                icon: 'edit',
-                command: (builder: any, userInputData: any) => {
-                    let oldData: IChartConfig<T> = DefaultData;
-                    let oldTag = {};
-                    return {
-                        execute: async () => {
-                            oldData = JSON.parse(JSON.stringify(this._data));
-                            const {
-                                title,
-                                description,
-                                options,
-                                ...themeSettings
-                            } = userInputData;
-
-                            const generalSettings = {
-                                title,
-                                description,
-                            };
-
-                            if (advancedSchema) {
-                                this._data = { ...this._data, ...generalSettings };
-                            } else {
-                                this._data = { ...generalSettings as IChartConfig<T>, options };
-                            }
-                            if (builder?.setData) builder.setData(this._data);
-                            this.setData(this._data);
-
-                            oldTag = JSON.parse(JSON.stringify(this.tag));
-                            if (builder?.setTag) builder.setTag(themeSettings);
-                            else this.setTag(themeSettings);
-                        },
-                        undo: () => {
-                            if (advancedSchema) oldData = { ...oldData, options: this._data.options };
-                            if (builder?.setData) builder.setData(oldData);
-                            this.setData(oldData);
-
-                            this.tag = JSON.parse(JSON.stringify(oldTag));
-                            if (builder?.setTag) builder.setTag(this.tag);
-                            else this.setTag(this.tag);
-                        },
-                        redo: () => { }
-                    }
-                },
-                userInputDataSchema: dataSchema,
-                userInputUISchema: uiSchema
-            },
-            this._getDataAction(builderSchema, advancedSchema)
-        ]
-        // if (advancedSchema) {
-        //   const advanced = {
-        //     name: 'Advanced',
-        //     icon: 'sliders-h',
-        //     command: (builder: any, userInputData: any) => {
-        //       let _oldData: ILineChartOptions = {};
-        //       return {
-        //         execute: async () => {
-        //           _oldData = { ...this._data?.options };
-        //           if (userInputData?.options !== undefined) this._data.options = userInputData.options;
-        //           if (builder?.setData) builder.setData(this._data);
-        //           this.setData(this._data);
-        //         },
-        //         undo: () => {
-        //           this._data.options = { ..._oldData };
-        //           if (builder?.setData) builder.setData(this._data);
-        //           this.setData(this._data);
-        //         },
-        //         redo: () => { }
-        //       }
-        //     },
-        //     userInputDataSchema: advancedSchema,
-        //     userInputUISchema: builderSchema.advanced.uiSchema as any
-        //   }
-        //   actions.push(advanced);
-        // }
-        return actions
-    }
-
-    private _getDataAction(builderSchema: IDataSchema, advancedSchema?: IDataSchema) {
-        return {
-            name: 'Data',
-            icon: 'database',
-            command: (builder: any, userInputData: any) => {
-                let _oldData: IChartConfig<T> = DefaultData;
-                return {
-                    execute: async () => {
-                        _oldData = { ...this._data };
-                        if (userInputData?.mode) this._data.mode = userInputData?.mode;
-                        if (userInputData?.file) this._data.file = userInputData?.file;
-                        if (userInputData?.dataSource) this._data.dataSource = userInputData?.dataSource;
-                        if (userInputData?.queryId) this._data.queryId = userInputData?.queryId;
-                        if (userInputData?.apiEndpoint) this._data.apiEndpoint = userInputData?.apiEndpoint;
-                        if (userInputData?.options !== undefined) this._data.options = userInputData.options;
-                        if (builder?.setData) builder.setData(this._data);
-                        this.setData(this._data);
-                    },
-                    undo: () => {
-                        if (builder?.setData) builder.setData(_oldData);
-                        this.setData(_oldData);
-                    },
-                    redo: () => { }
-                }
-            },
-            customUI: {
-                render: (data?: any, onConfirm?: (result: boolean, data: any) => void, onChange?: (result: boolean, data: any) => void) => {
-                    const vstack = new VStack(null, { gap: '1rem' });
-                    const dataSourceSetup = new ScomChartDataSourceSetup(null, {
-                        ...(data || this._data),
-                        chartData: JSON.stringify(this.chartData),
-                        onCustomDataChanged: async (dataSourceSetupData: any) => {
-                            if (onChange) {
-                                onChange(true, {
-                                    ...this._data,
-                                    ...dataSourceSetupData
-                                });
-                            }
-                        }
-                    });
-                    const hstackBtnConfirm = new HStack(null, {
-                        verticalAlignment: 'center',
-                        horizontalAlignment: 'end'
-                    });
-                    const button = new Button(null, {
-                        caption: 'Confirm',
-                        width: 'auto',
-                        padding: { top: '0.5rem', bottom: '0.5rem', left: '1rem', right: '1rem' },
-                        height: 40,
-                        font: { color: Theme.colors.primary.contrastText }
-                    });
-                    hstackBtnConfirm.append(button);
-                    vstack.append(dataSourceSetup);
-                    const dataOptionsForm = new ScomChartsDataForm(null, {
-                        options: data?.options || this._data.options,
-                        dataSchema: JSON.stringify(advancedSchema),
-                        uiSchema: JSON.stringify(builderSchema.advanced.uiSchema)
-                    });
-                    vstack.append(dataOptionsForm);
-                    vstack.append(hstackBtnConfirm);
-                    if (onChange) {
-                        dataOptionsForm.onCustomInputChanged = async (optionsFormData: any) => {
-                            onChange(true, {
-                                ...(data || this._data),
-                                ...optionsFormData,
-                                ...dataSourceSetup.data
-                            });
-                        }
-                    }
-                    button.onClick = async () => {
-                        const { dataSource, file, mode } = dataSourceSetup.data;
-                        if (mode === ModeType.LIVE && !dataSource) return;
-                        if (mode === ModeType.SNAPSHOT && !file?.cid) return;
-                        if (onConfirm) {
-                            const optionsFormData = await dataOptionsForm.refreshFormData();
-                            onConfirm(true, {
-                                ...(data || this._data),
-                                ...optionsFormData,
-                                ...dataSourceSetup.data
-                            });
-                        }
-                    }
-                    return vstack;
-                }
-            }
-        }
+        this.model.setTag(value);
     }
 
     getConfigurators() {
-        const self = this;
-        return [
-            {
-                name: 'Builder Configurator',
-                target: 'Builders',
-                getActions: () => {
-                    const builderSchema = this.getFormSchema(this.columnNames)?.builderSchema;
-                    const dataSchema = builderSchema.dataSchema as IDataSchema;
-                    const uiSchema = builderSchema.uiSchema as IUISchema;
-                    const advancedSchema = builderSchema.advanced.dataSchema as any;
-                    return this._getActions(dataSchema, uiSchema, advancedSchema);
-                },
-                getData: this.getData.bind(this),
-                setData: async (data: IChartConfig<T>) => {
-                    const defaultData = this._defautData || {};
-                    await this.setData({ ...defaultData, ...data });
-                },
-                getTag: this.getTag.bind(this),
-                setTag: this.setTag.bind(this)
-            },
-            {
-                name: 'Emdedder Configurator',
-                target: 'Embedders',
-                getActions: () => {
-                    const embedderSchema = this.getFormSchema(this.columnNames)?.embededSchema;
-                    const dataSchema = embedderSchema.dataSchema as any;
-                    const uiSchema = embedderSchema.uiSchema as IUISchema;
-                    return this._getActions(dataSchema, uiSchema);
-                },
-                getLinkParams: () => {
-                    const data = this._data || {};
-                    return {
-                        data: window.btoa(JSON.stringify(data))
-                    }
-                },
-                setLinkParams: async (params: any) => {
-                    if (params.data) {
-                        const utf8String = decodeURIComponent(params.data);
-                        const decodedString = window.atob(utf8String);
-                        const newData = JSON.parse(decodedString);
-                        let resultingData = {
-                            ...self._data,
-                            ...newData
-                        };
-                        await this.setData(resultingData);
-                    }
-                },
-                getData: this.getData.bind(this),
-                setData: this.setData.bind(this),
-                getTag: this.getTag.bind(this),
-                setTag: this.setTag.bind(this)
-            },
-            {
-                name: 'Editor',
-                target: 'Editor',
-                getActions: () => {
-                    const builderSchema = this.getFormSchema(this.columnNames)?.builderSchema;
-                    const advancedSchema = builderSchema.advanced.dataSchema as any;
-                    return [
-                        this._getDataAction(builderSchema, advancedSchema)
-                    ]
-                },
-                getData: this.getData.bind(this),
-                setData: this.setData.bind(this)
-            }
-        ]
+        this.initModel();
+        return this.model.getConfigurators();
+    }
+
+    resize() {
+        this.chartEl?.resize();
     }
 
     private updateStyle(name: string, value: any) {
@@ -579,64 +274,20 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
 
     private async updateChartData() {
         if (this.loadingElm) this.loadingElm.visible = true;
-        if (this._data?.mode === ModeType.SNAPSHOT)
-            await this.renderSnapshotData();
-        else
-            await this.renderLiveData();
+        await this.model.fetchData();
         if (this.loadingElm) this.loadingElm.visible = false;
     }
 
-    private async renderSnapshotData() {
-        if (this._data.file?.cid) {
-            try {
-                const data = await fetchContentByCID(this._data.file.cid);
-                if (data) {
-                    const { metadata, rows } = data;
-                    this.chartData = rows;
-                    this.columnNames = metadata?.column_names || [];
-                    this.onUpdateBlock();
-                    return;
-                }
-            } catch { }
-        }
-        this.chartData = [];
-        this.columnNames = [];
-        this.onUpdateBlock();
-    }
-
-    private async renderLiveData() {
-        const dataSource = this._data.dataSource as DataSource;
-        if (dataSource) {
-            try {
-                const data = await callAPI({
-                    dataSource,
-                    queryId: this._data.queryId,
-                    apiEndpoint: this._data.apiEndpoint
-                });
-                if (data) {
-                    const { metadata, rows } = data;
-                    this.chartData = rows;
-                    this.columnNames = metadata?.column_names || [];
-                    this.onUpdateBlock();
-                    return;
-                }
-            } catch { }
-        }
-        this.chartData = [];
-        this.columnNames = [];
-        this.onUpdateBlock();
-    }
-
     private renderChart() {
-        if ((!this.pnlChart && this._data.options) || !this._data.options) return;
-        const { title, description } = this._data;
+        if ((!this.pnlChart && this.model?.getData()?.options) || !this.model?.getData()?.options) return;
+        const { title, description } = this.model.getData();
         this.lbTitle.caption = title;
         this.lbDescription.caption = description;
         this.lbDescription.visible = !!description;
         this.pnlChart.height = `calc(100% - ${this.vStackInfo.offsetHeight + 10}px)`;
         this.pnlChart.clearInnerHTML();
         const data = this.getChartData();
-        this._defautData = data?.defaultBuilderData;
+        this.model.defaultData = data?.defaultBuilderData;
         this.chartEl = new Charts<T>(this.pnlChart, {
             data: data?.chartData,
             width: '100%',
@@ -645,11 +296,17 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
         this.chartEl.drawChart();
     }
 
-    resize() {
-        this.chartEl?.resize();
+    private initModel() {
+        if (!this.model) {
+            this.model = new Model<T>(this);
+            this.model.updateWidget = this.onUpdateBlock.bind(this);
+            this.model.updateChartData = this.updateChartData.bind(this);
+            this.model.getFormSchema = this.getFormSchema.bind(this);
+        }
     }
 
     async init() {
+        this.initModel();
         super.init();
         this.updateTheme();
         this.setTag({
@@ -662,7 +319,7 @@ export class ScomCharts<T> extends Module implements BlockSpecs {
         const lazyLoad = this.getAttribute('lazyLoad', true, false);
         if (!lazyLoad) {
             const data = this.getAttribute('data', true);
-            this._defautData = this.getAttribute('defautData', true);
+            this.model.defaultData = this.getAttribute('defaultData', true);
             if (data) {
                 this.setData(data);
             }

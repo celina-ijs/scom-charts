@@ -57,7 +57,7 @@ export class Charts<T> extends Module {
 
     private async addLib() {
         return new Promise((resolve, reject) => {
-            RequireJS.require([`${LibPath}lib/echarts/ecStat.min.js`], (ecStat: any) => {
+            RequireJS.require([`${path}/lib/echarts/ecStat.min.js`], (ecStat: any) => {
                 resolve(ecStat);
             });
         });
