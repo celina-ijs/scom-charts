@@ -67,6 +67,7 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
 
     addBlock(blocknote: any, executeFn: executeFnType, callbackFn?: callbackFnType) {
         const blockType = 'chart';
+        const chartsRegex = /https:\/\/widget.noto.fan\/(#!\/)?scom\/scom-(pie|line|bar|area|mixed|scatter|counter)(-chart)?\/\S+/g;
         function getData(href: string) {
             const widgetData = parseUrl(href);
             if (widgetData) {
@@ -91,75 +92,93 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
             },
             content: "none"
         },
-            {
-                render: (block: any) => {
-                    const wrapper = new Panel();
-                    const data = JSON.parse(JSON.stringify(block.props));
-                    const chart = new ScomChartBlock(wrapper, { data });
-                    wrapper.appendChild(chart);
-                    return {
-                        dom: wrapper
-                    };
-                },
-                parseFn: () => {
-                    return [
-                        {
-                            tag: `div[data-content-type=${blockType}]`,
-                            contentElement: "[data-editable]"
-                        },
-                        {
-                            tag: "a",
-                            getAttrs: (element: string | HTMLElement) => {
-                                if (typeof element === "string") {
-                                    return false;
-                                }
-                                const href = element.getAttribute('href');
-                                if (href) return getData(href);
+        {
+            render: (block: any) => {
+                const wrapper = new Panel();
+                const data = JSON.parse(JSON.stringify(block.props));
+                const chart = new ScomChartBlock(wrapper, { data });
+                wrapper.appendChild(chart);
+                return {
+                    dom: wrapper
+                };
+            },
+            parseFn: () => {
+                return [
+                    {
+                        tag: `div[data-content-type=${blockType}]`,
+                        contentElement: "[data-editable]"
+                    },
+                    {
+                        tag: "a",
+                        getAttrs: (element: string | HTMLElement) => {
+                            if (typeof element === "string") {
                                 return false;
-                            },
-                            priority: 404,
-                            node: blockType
+                            }
+                            const href = element.getAttribute('href');
+                            if (href) return getData(href);
+                            return false;
                         },
-                        {
-                            tag: "p",
-                            getAttrs: (element: string | HTMLElement) => {
-                                if (typeof element === "string") {
-                                    return false;
-                                }
-                                const child = element.firstChild as HTMLElement;
-                                if (child?.nodeName === 'A' && child.getAttribute('href')) {
-                                    const href = child.getAttribute('href');
-                                    return getData(href);
-                                }
+                        priority: 404,
+                        node: blockType
+                    },
+                    {
+                        tag: "p",
+                        getAttrs: (element: string | HTMLElement) => {
+                            if (typeof element === "string") {
                                 return false;
-                            },
-                            priority: 405,
-                            node: blockType
+                            }
+                            const child = element.firstChild as HTMLElement;
+                            if (child?.nodeName === 'A' && child.getAttribute('href')) {
+                                const href = child.getAttribute('href');
+                                return getData(href);
+                            }
+                            return false;
                         },
-                    ]
-                },
-                toExternalHTML: (block: any, editor: any) => {
-                    const link = document.createElement("a");
-                    const module = {
-                        name: `@scom/${block.props?.name || DEFAULT_CHART_TYPE}`,
-                        localPath: `${block.props?.name || DEFAULT_CHART_TYPE}`
-                    };
-                    const url = getWidgetEmbedUrl(
-                        {
-                            type: blockType,
-                            props: { ...(block.props || {}) }
-                        },
-                        module
-                    );
-                    link.setAttribute("href", url);
-                    link.textContent = 'chart';
-                    const wrapper = document.createElement("p");
-                    wrapper.appendChild(link);
-                    return {
-                        dom: wrapper
-                    }
+                        priority: 405,
+                        node: blockType
+                    },
+                ]
+            },
+            toExternalHTML: (block: any, editor: any) => {
+                const link = document.createElement("a");
+                const module = {
+                    name: `@scom/${block.props?.name || DEFAULT_CHART_TYPE}`,
+                    localPath: `${block.props?.name || DEFAULT_CHART_TYPE}`
+                };
+                const url = getWidgetEmbedUrl(
+                    {
+                        type: blockType,
+                        props: { ...(block.props || {}) }
+                    },
+                    module
+                );
+                link.setAttribute("href", url);
+                link.textContent = 'chart';
+                const wrapper = document.createElement("p");
+                wrapper.appendChild(link);
+                return {
+                    dom: wrapper
                 }
-            });
+            },
+            pasteRules: [
+                {
+                  find: chartsRegex,
+                  handler(props: any) {
+                    const { state, chain, range } = props;
+                    const textContent = state.doc.resolve(range.from).nodeAfter?.textContent;
+                    const widgetData = parseUrl(textContent);
+                    if (!widgetData) return null;
+                    const { properties } = widgetData;
+                    chain().BNUpdateBlock(state.selection.from, {
+                      type: blockType,
+                      props: {
+                        ...properties
+                      },
+                    }).setTextSelection(range.from + 1);
+                  }
+                }
+            ]
+        });
 
         const ChartSlashItem = {
             name: "Chart",

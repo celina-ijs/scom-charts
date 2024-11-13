@@ -857,6 +857,7 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
         }
         addBlock(blocknote, executeFn, callbackFn) {
             const blockType = 'chart';
+            const chartsRegex = /https:\/\/widget.noto.fan\/(#!\/)?scom\/scom-(pie|line|bar|area|mixed|scatter|counter)(-chart)?\/\S+/g;
             function getData(href) {
                 const widgetData = (0, scom_blocknote_sdk_1.parseUrl)(href);
                 if (widgetData) {
@@ -946,7 +947,26 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
                     return {
                         dom: wrapper
                     };
-                }
+                },
+                pasteRules: [
+                    {
+                        find: chartsRegex,
+                        handler(props) {
+                            const { state, chain, range } = props;
+                            const textContent = state.doc.resolve(range.from).nodeAfter?.textContent;
+                            const widgetData = (0, scom_blocknote_sdk_1.parseUrl)(textContent);
+                            if (!widgetData)
+                                return null;
+                            const { properties } = widgetData;
+                            chain().BNUpdateBlock(state.selection.from, {
+                                type: blockType,
+                                props: {
+                                    ...properties
+                                },
+                            }).setTextSelection(range.from + 1);
+                        }
+                    }
+                ]
             });
             const ChartSlashItem = {
                 name: "Chart",
