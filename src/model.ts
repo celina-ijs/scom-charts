@@ -350,7 +350,7 @@ export class Model<T> {
         });
         if (data) {
           const { metadata, rows } = data;
-          this._chartData = rows;
+          this._chartData = rows || [];
           this.columnNames = metadata?.column_names || [];
           this.updateWidget();
           return;

@@ -820,7 +820,7 @@ define("@scom/scom-charts/model.ts", ["require", "exports", "@ijstech/components
                     });
                     if (data) {
                         const { metadata, rows } = data;
-                        this._chartData = rows;
+                        this._chartData = rows || [];
                         this.columnNames = metadata?.column_names || [];
                         this.updateWidget();
                         return;
@@ -835,7 +835,45 @@ define("@scom/scom-charts/model.ts", ["require", "exports", "@ijstech/components
     }
     exports.Model = Model;
 });
-define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom/scom-charts/components/index.ts", "@scom/scom-charts/index.css.ts", "@scom/scom-charts/assets.ts", "@scom/scom-charts/utils.ts", "@scom/scom-charts/model.ts", "@scom/scom-blocknote-sdk", "@scom/scom-charts/utils.ts"], function (require, exports, components_8, index_2, index_css_1, assets_1, utils_3, model_1, scom_blocknote_sdk_1, utils_4) {
+define("@scom/scom-charts/data.json.ts", ["require", "exports"], function (require, exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    ///<amd-module name='@scom/scom-charts/data.json.ts'/> 
+    exports.default = {
+        "defaultBuilderData": {
+            "name": "scom-line-chart",
+            "dataSource": "Dune",
+            "mode": "Live",
+            "queryId": "3865244",
+            "title": "MEV Blocks Trend by Builders",
+            "options": {
+                "xColumn": {
+                    "key": "block_date",
+                    "type": "time"
+                },
+                "yColumns": [
+                    "mev_block_count"
+                ],
+                "seriesOptions": [
+                    {
+                        "key": "mev_block_count",
+                        "title": "Blocks",
+                        "color": "#000"
+                    }
+                ],
+                "xAxis": {
+                    "title": "Date",
+                    "tickFormat": "MMM DD"
+                },
+                "yAxis": {
+                    "labelFormat": "0,000.00",
+                    "position": "left"
+                }
+            }
+        }
+    };
+});
+define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom/scom-charts/components/index.ts", "@scom/scom-charts/index.css.ts", "@scom/scom-charts/assets.ts", "@scom/scom-charts/utils.ts", "@scom/scom-charts/model.ts", "@scom/scom-blocknote-sdk", "@scom/scom-charts/data.json.ts", "@scom/scom-charts/utils.ts"], function (require, exports, components_8, index_2, index_css_1, assets_1, utils_3, model_1, scom_blocknote_sdk_1, data_json_1, utils_4) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ScomCharts = exports.Charts = void 0;
@@ -941,7 +979,7 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
                         props: { ...(block.props || {}) }
                     }, module);
                     link.setAttribute("href", url);
-                    link.textContent = 'chart';
+                    link.textContent = blockType;
                     const wrapper = document.createElement("p");
                     wrapper.appendChild(link);
                     return {
@@ -973,16 +1011,12 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
                 execute: (editor) => {
                     const block = {
                         type: blockType,
-                        props: {
-                            name: utils_3.DEFAULT_CHART_TYPE,
-                            "dataSource": "Dune",
-                            ...(0, utils_3.getInitLineChartData)()
-                        }
+                        props: data_json_1.default.defaultBuilderData
                     };
                     if (typeof executeFn === 'function')
                         executeFn(editor, block);
                 },
-                aliases: ["chart", "widget"],
+                aliases: [blockType, "widget"],
                 group: "Widget",
                 icon: { name: 'chart-line' },
                 hint: "Insert a chart widget",
@@ -1017,7 +1051,7 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
                 }
             };
         }
-        getChartData() {
+        getChartData(options) {
             return null;
         }
         showConfigurator(parent, prop) {
@@ -1062,8 +1096,8 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
             this.updateStyle('--custom-text-color', tags.customFontColor ? tags.fontColor : tags.customWidgetsColor ? tags.widgetsColor : tags.parentCustomFontColor ? tags.parentFontColor : '');
             this.updateStyle('--custom-background-color', tags.customBackgroundColor ? tags.backgroundColor : tags.customWidgetsBackground ? tags.widgetsBackground : tags.parentCustomBackgroundColor ? tags.parentBackgroundColor : '');
         }
-        onUpdateBlock() {
-            this.renderChart();
+        async onUpdateBlock() {
+            await this.renderChart();
             this.updateTheme();
         }
         async updateChartData() {
@@ -1073,8 +1107,8 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
             if (this.loadingElm)
                 this.loadingElm.visible = false;
         }
-        renderChart() {
-            if ((!this.pnlChart && this.model?.getData()?.options) || !this.model?.getData()?.options)
+        async renderChart() {
+            if (!this.pnlChart)
                 return;
             const { title, description } = this.model.getData();
             this.lbTitle.caption = title;
@@ -1082,7 +1116,8 @@ define("@scom/scom-charts", ["require", "exports", "@ijstech/components", "@scom
             this.lbDescription.visible = !!description;
             this.pnlChart.height = `calc(100% - ${this.vStackInfo.offsetHeight + 10}px)`;
             this.pnlChart.clearInnerHTML();
-            const data = this.getChartData();
+            const options = this.model?.getData()?.options;
+            const data = await this.getChartData(options);
             this.model.defaultData = data?.defaultBuilderData;
             this.chartEl = new index_2.Charts(this.pnlChart, {
                 data: data?.chartData,
