@@ -14,9 +14,10 @@ import { Charts, ScomChartBlock } from './components/index';
 import { chartStyle, containerStyle, textStyle } from './index.css';
 import assets from './assets';
 import { IChartConfig, ThemeType } from './interface';
-import { ChartTypes, DEFAULT_CHART_TYPE, getInitLineChartData } from './utils';
+import { ChartTypes, DEFAULT_CHART_TYPE } from './utils';
 import { Model } from './model';
 import { BlockNoteSpecs, callbackFnType, executeFnType, getWidgetEmbedUrl, parseUrl } from '@scom/scom-blocknote-sdk';
+import dataJson from './data.json';
 
 export * from './utils';
 export { Charts };
@@ -76,6 +77,7 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
             }
             return false;
         }
+
         const ChartBlock = blocknote.createBlockSpec({
             type: blockType,
             propSchema: {
@@ -153,7 +155,7 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
                     module
                 );
                 link.setAttribute("href", url);
-                link.textContent = 'chart';
+                link.textContent = blockType;
                 const wrapper = document.createElement("p");
                 wrapper.appendChild(link);
                 return {
@@ -185,15 +187,11 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
             execute: (editor: any) => {
                 const block: any = {
                     type: blockType,
-                    props: {
-                        name: DEFAULT_CHART_TYPE,
-                        "dataSource": "Dune",
-                        ...getInitLineChartData()
-                    }
+                    props: dataJson.defaultBuilderData
                 }
                 if (typeof executeFn === 'function') executeFn(editor, block);
             },
-            aliases: ["chart", "widget"],
+            aliases: [blockType, "widget"],
             group: "Widget",
             icon: { name: 'chart-line' },
             hint: "Insert a chart widget",
@@ -232,7 +230,7 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
         };
     }
 
-    getChartData() {
+    getChartData(options?: any) {
         return null;
     }
 
@@ -286,8 +284,8 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
         this.updateStyle('--custom-background-color', tags.customBackgroundColor ? tags.backgroundColor : tags.customWidgetsBackground ? tags.widgetsBackground : tags.parentCustomBackgroundColor ? tags.parentBackgroundColor : '');
     }
 
-    private onUpdateBlock() {
-        this.renderChart();
+    private async onUpdateBlock() {
+        await this.renderChart();
         this.updateTheme();
     }
 
@@ -297,15 +295,16 @@ export class ScomCharts<T> extends Module implements BlockNoteSpecs {
         if (this.loadingElm) this.loadingElm.visible = false;
     }
 
-    private renderChart() {
-        if ((!this.pnlChart && this.model?.getData()?.options) || !this.model?.getData()?.options) return;
+    private async renderChart() {
+        if (!this.pnlChart) return;
         const { title, description } = this.model.getData();
         this.lbTitle.caption = title;
         this.lbDescription.caption = description;
         this.lbDescription.visible = !!description;
         this.pnlChart.height = `calc(100% - ${this.vStackInfo.offsetHeight + 10}px)`;
         this.pnlChart.clearInnerHTML();
-        const data = this.getChartData();
+        const options = this.model?.getData()?.options
+        const data = await this.getChartData(options);
         this.model.defaultData = data?.defaultBuilderData;
         this.chartEl = new Charts<T>(this.pnlChart, {
             data: data?.chartData,

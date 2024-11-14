@@ -349,6 +349,39 @@ declare module "@scom/scom-charts/model.ts" {
         private renderLiveData;
     }
 }
+/// <amd-module name="@scom/scom-charts/data.json.ts" />
+declare module "@scom/scom-charts/data.json.ts" {
+    const _default_1: {
+        defaultBuilderData: {
+            name: string;
+            dataSource: string;
+            mode: string;
+            queryId: string;
+            title: string;
+            options: {
+                xColumn: {
+                    key: string;
+                    type: string;
+                };
+                yColumns: string[];
+                seriesOptions: {
+                    key: string;
+                    title: string;
+                    color: string;
+                }[];
+                xAxis: {
+                    title: string;
+                    tickFormat: string;
+                };
+                yAxis: {
+                    labelFormat: string;
+                    position: string;
+                };
+            };
+        };
+    };
+    export default _default_1;
+}
 /// <amd-module name="@scom/scom-charts" />
 declare module "@scom/scom-charts" {
     import { Module, ControlElement, Container, VStack, Modal } from '@ijstech/components';
@@ -419,7 +452,7 @@ declare module "@scom/scom-charts" {
                 uiSchema: {};
             };
         };
-        getChartData(): any;
+        getChartData(options?: any): any;
         showConfigurator(parent: Modal, prop: string): void;
         private onConfigSave;
         private setData;
